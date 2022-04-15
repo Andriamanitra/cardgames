@@ -185,7 +185,7 @@ class HeartsGame:
         for round_scores in zip(*scores.values()):
             scoresheet.append(" | ".join(f"{score:^{COL_WIDTH}}" for score in round_scores))
         if game_over:
-            scoresheet.append("-|-".join(["-"*11]*4))
+            scoresheet.append("-|-".join(["-" * 11] * 4))
             scoresheet.append(" | ".join(f"{sum(scores):^{COL_WIDTH}}" for scores in scores.values()))
         return "\n".join(scoresheet)
 
