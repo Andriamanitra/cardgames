@@ -149,8 +149,19 @@ class HeartsGame:
             # rotate players so the winner of this hand begins the next round
             self.players = self.players[winner_index:] + self.players[:winner_index]
 
-        # TODO: implement shoot the moon
         print("Round over")
+        # check for shoot the moon before distributing points regularly
+        for player in self.players:
+            if HeartsGame.score(player.collected_cards) == 26:
+                print(f"Player {player.name} shoots the moon!")
+                print("All other players get 26 added to their score.")
+                for other_player in self.players:
+                    if other_player is player:
+                        player.give_points(0)
+                    else:
+                        other_player.give_points(26)
+                return
+
         for player in self.players:
             num_cards = len(player.collected_cards)
             score = HeartsGame.score(player.collected_cards)
