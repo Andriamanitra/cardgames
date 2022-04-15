@@ -1,3 +1,5 @@
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Andriamanitra/cardgames/main.svg)](https://results.pre-commit.ci/latest/github/Andriamanitra/cardgames/main)
+
 # Card games in Python
 
 Goal of this repo is to implement various card games from scratch in Python.
