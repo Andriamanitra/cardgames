@@ -1,5 +1,5 @@
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Andriamanitra/cardgames/main.svg)](https://results.pre-commit.ci/latest/github/Andriamanitra/cardgames/main)
-![tests](https://github.com/andriamanitra/cardgames/actions/workflows/pytest.yml/badge.svg)
+[![tests](https://github.com/Andriamanitra/cardgames/actions/workflows/pytest.yml/badge.svg)](https://github.com/Andriamanitra/cardgames/actions/workflows/pytest.yml)
 
 # Card games in Python
 
