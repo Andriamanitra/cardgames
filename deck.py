@@ -1,6 +1,6 @@
-import random
-import enum
 import collections
+import enum
+import random
 
 
 class Suits(enum.Enum):

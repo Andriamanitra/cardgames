@@ -1,5 +1,8 @@
 import random
-from deck import Deck, StandardDeck, Suits
+
+from deck import Deck
+from deck import StandardDeck
+from deck import Suits
 
 
 CARD_VALUES = {card_val: value for value, card_val in enumerate(StandardDeck.CARD_VALUES)}
@@ -11,6 +14,7 @@ class Player:
     Classes inheriting from this should implement
     play_card method that chooses which card to play
     """
+
     def __init__(self, name):
         self.name = name
         self.cards = Deck()
@@ -186,7 +190,7 @@ class HeartsGame:
 
 if __name__ == "__main__":
     players = [
-        #HumanPlayerCLI("Alice"),
+        # HumanPlayerCLI("Alice"),
         RNGPlayer("Alice"),
         RNGPlayer("Bob"),
         RNGPlayer("Cleo"),

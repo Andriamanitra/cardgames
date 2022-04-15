@@ -1,5 +1,9 @@
 import pytest
-from deck import Suits, Card, Deck, StandardDeck
+
+from deck import Card
+from deck import Deck
+from deck import StandardDeck
+from deck import Suits
 
 
 @pytest.mark.parametrize("suit,value,expected", [
