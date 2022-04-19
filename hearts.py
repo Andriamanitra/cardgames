@@ -1,5 +1,6 @@
 import random
 
+from deck import Card
 from deck import Deck
 from deck import StandardDeck
 from deck import Suits
@@ -15,19 +16,19 @@ class Player:
     play_card method that chooses which card to play
     """
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
         self.cards = Deck()
         self.collected_cards = Deck()
-        self.points = []
+        self.points: list[int] = []
 
-    def has_two_of_clubs(self):
+    def has_two_of_clubs(self) -> bool:
         return any(card.long_name == "Two of clubs" for card in self.cards)
 
-    def give_points(self, points):
+    def give_points(self, points: int):
         self.points.append(points)
 
-    def play_card(self, trick, legal_moves):
+    def play_card(self, trick: Deck, legal_moves: list[Card]) -> Card:
         raise NotImplementedError("play_card method not implemented for Player class")
 
     @property
@@ -36,7 +37,7 @@ class Player:
 
 
 class HumanPlayerCLI(Player):
-    def play_card(self, trick, legal_moves):
+    def play_card(self, trick: Deck, legal_moves: list[Card]) -> Card:
         print(f"{self.name}'s cards:", *[f"({i}){str(card)}" for i, card in enumerate(self.cards)])
         while True:
             to_play = input("Pick a card: ")
@@ -55,7 +56,7 @@ class HumanPlayerCLI(Player):
 
 
 class RNGPlayer(Player):
-    def play_card(self, trick, legal_moves):
+    def play_card(self, trick: Deck, legal_moves: list[Card]) -> Card:
         chosen_card = random.choice(legal_moves)
         self.cards.remove(chosen_card)
         print(f"{self.name} plays {chosen_card}")
@@ -63,17 +64,17 @@ class RNGPlayer(Player):
 
 
 class HeartsGame:
-    def __init__(self, players, point_limit=100):
+    def __init__(self, players: list[Player], point_limit: int = 100):
         if len(players) != 4:
             raise ValueError("only 4 player games are supported right now")
         self.CARDS_PER_PLAYER = 13
         self.players = players
-        self.point_limit = 100
+        self.point_limit = point_limit
         self.hearts_opened = False
         self.deck = StandardDeck()
 
     @classmethod
-    def score(cls, deck):
+    def score(cls, deck: Deck) -> int:
         score = 0
         for card in deck:
             if card.suit == Suits.HEARTS:
@@ -82,10 +83,10 @@ class HeartsGame:
                 score += 13
         return score
 
-    def is_game_over(self):
+    def is_game_over(self) -> bool:
         return any(player.total_points >= self.point_limit for player in self.players)
 
-    def legal_moves(self, trick, cards):
+    def legal_moves(self, trick: Deck, cards: list[Card]) -> list[Card]:
         if len(cards) == self.CARDS_PER_PLAYER and len(trick) == 0:
             # first move, forced to play 2 of clubs
             return [card for card in cards if card.long_name == "Two of clubs"]
@@ -123,7 +124,7 @@ class HeartsGame:
         # TODO: exchanging cards
 
         for trick_number in range(1, self.CARDS_PER_PLAYER + 1):
-            print(f"Trick #{trick_number}:")
+            print(f"============ Trick #{trick_number} ============")
             trick = Deck()
             for player in self.players:
                 legal_moves = self.legal_moves(trick, player.cards)
@@ -143,7 +144,7 @@ class HeartsGame:
             # rotate players so the winner of this trick begins the next trick
             self.players = self.players[winner_index:] + self.players[:winner_index]
 
-        print("Round over")
+        print("\nRound over! Results:")
         # check for shoot the moon before distributing points regularly
         for player in self.players:
             if HeartsGame.score(player.collected_cards) == 26:
@@ -162,10 +163,10 @@ class HeartsGame:
             print(f"Player {player.name} collected {num_cards} cards and scored {score}")
             player.give_points(score)
 
-    def player_scores(self):
+    def player_scores(self) -> dict[str, list[int]]:
         return {player.name: player.points for player in self.players}
 
-    def scoresheet(self):
+    def scoresheet(self) -> str:
         scores = self.player_scores()
         game_over = self.is_game_over()
         COL_WIDTH = 11
@@ -183,7 +184,7 @@ class HeartsGame:
             scoresheet.append(" | ".join(f"{sum(scores):^{COL_WIDTH}}" for scores in scores.values()))
         return "\n".join(scoresheet)
 
-    def winner_index(self, trick):
+    def winner_index(self, trick: Deck) -> int:
         cards_played = enumerate(trick)
         winner_index, max_card = next(cards_played)
         for (i, card) in cards_played:
@@ -194,7 +195,7 @@ class HeartsGame:
 
 
 if __name__ == "__main__":
-    players = [
+    players: list[Player] = [
         # HumanPlayerCLI("Alice"),
         RNGPlayer("Alice"),
         RNGPlayer("Bob"),
@@ -203,4 +204,5 @@ if __name__ == "__main__":
     ]
     hearts_game = HeartsGame(players)
     hearts_game.play()
+    print()
     print(hearts_game.scoresheet())
