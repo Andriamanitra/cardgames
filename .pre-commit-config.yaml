@@ -23,3 +23,9 @@ repos:
     hooks:
     -   id: reorder-python-imports
         args: [--py39-plus]
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.942
+    hooks:
+    -   id: mypy
+        # TODO: https://mypy.readthedocs.io/en/stable/running_mypy.html#cannot-find-implementation-or-library-stub
+        args: [--python-version=3.10, --ignore-missing-imports]
