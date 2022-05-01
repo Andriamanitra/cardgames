@@ -1,4 +1,5 @@
 import random
+from collections.abc import Iterator
 
 from deck import Card
 from deck import Deck
@@ -22,28 +23,33 @@ class Player:
         self.collected_cards = Deck()
         self.points: list[int] = []
 
-    def has_two_of_clubs(self) -> bool:
-        return any(card.long_name == "Two of clubs" for card in self.cards)
+    def has(self, card_name: str) -> bool:
+        return any(card.long_name == card_name for card in self.cards)
 
     def give_points(self, points: int):
         self.points.append(points)
 
-    def play_card(self, trick: Deck, legal_moves: list[Card]) -> Card:
-        raise NotImplementedError("play_card method not implemented for Player class")
+    def choose_action(self, trick: Deck, legal_moves: list[Card]) -> Card:
+        raise NotImplementedError("choose_action method not implemented for Player class")
 
     @property
-    def total_points(self):
+    def total_points(self) -> int:
         return sum(self.points)
 
 
 class HumanPlayerCLI(Player):
-    def play_card(self, trick: Deck, legal_moves: list[Card]) -> Card:
+    def choose_action(self, trick, legal_moves):
         print(f"{self.name}'s cards:", *[f"({i}){str(card)}" for i, card in enumerate(self.cards)])
         while True:
             to_play = input("Pick a card: ")
-            i = int(to_play)
-            print(f"You picked {self.cards[i]}")
-            if self.cards[i] not in legal_moves:
+            try:
+                i = int(to_play)
+                chosen_card = self.cards[i]
+            except (ValueError, IndexError):
+                print("Invalid choice, try again")
+                continue
+            print(f"You picked {chosen_card}")
+            if chosen_card not in legal_moves:
                 if len(legal_moves) == 1:
                     print(f"Illegal move. You must play {legal_moves[0]}.")
                 elif len(trick) == 0:
@@ -52,13 +58,12 @@ class HumanPlayerCLI(Player):
                     print("You must follow suit. Try again.")
                 continue
             break
-        return self.cards.pop(i)
+        return chosen_card
 
 
 class RNGPlayer(Player):
-    def play_card(self, trick: Deck, legal_moves: list[Card]) -> Card:
+    def choose_action(self, trick, legal_moves):
         chosen_card = random.choice(legal_moves)
-        self.cards.remove(chosen_card)
         print(f"{self.name} plays {chosen_card}")
         return chosen_card
 
@@ -69,12 +74,14 @@ class HeartsGame:
             raise ValueError("only 4 player games are supported right now")
         self.CARDS_PER_PLAYER = 13
         self.players = players
+        self._current_player_idx = 0
+        self.game_over = False
         self.point_limit = point_limit
         self.hearts_opened = False
         self.deck = StandardDeck()
 
     @classmethod
-    def score(cls, deck: Deck) -> int:
+    def score_deck(cls, deck: Deck) -> int:
         score = 0
         for card in deck:
             if card.suit == Suits.HEARTS:
@@ -83,95 +90,53 @@ class HeartsGame:
                 score += 13
         return score
 
-    def is_game_over(self) -> bool:
-        return any(player.total_points >= self.point_limit for player in self.players)
+    @property
+    def current_player(self) -> Player:
+        return self.players[self._current_player_idx]
 
-    def legal_moves(self, trick: Deck, cards: list[Card]) -> list[Card]:
-        if len(cards) == self.CARDS_PER_PLAYER and len(trick) == 0:
+    def __iter__(self) -> Iterator[tuple[Player, Deck]]:
+        self._initialize_round()
+        while not self.game_over:
+            yield self.current_player, self.trick
+
+    def legal_moves(self, cards: Deck) -> list[Card]:
+        if len(cards) == self.CARDS_PER_PLAYER and len(self.trick) == 0:
             # first move, forced to play 2 of clubs
             return [card for card in cards if card.long_name == "Two of clubs"]
 
-        if len(trick) == 0:
+        if len(self.trick) == 0:
             # first card in a trick, can play anything except
             # hearts if they are not yet opened
             playable = [card for card in cards if self.hearts_opened or card.suit != Suits.HEARTS]
         else:
             # must follow suit
-            required = trick[0].suit
+            required = self.trick[0].suit
             playable = [card for card in cards if card.suit == required]
 
         # if it's impossible to follow suit (or not play hearts),
         # then a player is free to play any card
         return playable if playable else list(cards)
 
-    def play(self):
-        while not self.is_game_over():
-            self.play_round()
+    def play_card(self, card: Card):
+        if card not in self.legal_moves(self.current_player.cards):
+            raise ValueError(f"Illegal move ({card})!")
 
-    def play_round(self):
-        self.deck = StandardDeck().shuffle()
-        self.hearts_opened = False
-        for player in self.players:
-            player.collected_cards = Deck()
-            player_cards = self.deck.take(self.CARDS_PER_PLAYER)
-            player_cards.sort(key=lambda card: ("♣♦♠♥".index(card.suit.value), int(card)))
-            player.cards = player_cards
+        self.current_player.cards.remove(card)
+        self.trick.append(card)
+        self._current_player_idx += 1
+        self._current_player_idx %= len(self.players)
 
-        # rotate players until the first player has two of clubs
-        while not self.players[0].has_two_of_clubs():
-            self.players.append(self.players.pop(0))
-
-        # TODO: exchanging cards
-
-        for trick_number in range(1, self.CARDS_PER_PLAYER + 1):
-            print(f"============ Trick #{trick_number} ============")
-            trick = Deck()
-            for player in self.players:
-                legal_moves = self.legal_moves(trick, player.cards)
-                played_card = player.play_card(trick, legal_moves)
-                if played_card not in legal_moves:
-                    raise ValueError(f"Illegal move ({played_card}) was played")
-                trick.append(played_card)
-
-            if not self.hearts_opened and any(card.suit == Suits.HEARTS for card in trick):
-                self.hearts_opened = True
-
-            # "winner" collects cards
-            winner_index = self.winner_index(trick)
-            winner = self.players[winner_index]
-            print(f"{winner.name} takes the trick")
-            winner.collected_cards.extend(trick)
-            # rotate players so the winner of this trick begins the next trick
-            self.players = self.players[winner_index:] + self.players[:winner_index]
-
-        print("\nRound over! Results:")
-        # check for shoot the moon before distributing points regularly
-        for player in self.players:
-            if HeartsGame.score(player.collected_cards) == 26:
-                print(f"Player {player.name} shoots the moon!")
-                print("All other players get 26 added to their score.")
-                for other_player in self.players:
-                    if other_player is player:
-                        player.give_points(0)
-                    else:
-                        other_player.give_points(26)
-                return
-
-        for player in self.players:
-            num_cards = len(player.collected_cards)
-            score = HeartsGame.score(player.collected_cards)
-            print(f"Player {player.name} collected {num_cards} cards and scored {score}")
-            player.give_points(score)
+        if len(self.trick) == len(self.players):
+            self._finish_trick()
 
     def player_scores(self) -> dict[str, list[int]]:
         return {player.name: player.points for player in self.players}
 
     def scoresheet(self) -> str:
         scores = self.player_scores()
-        game_over = self.is_game_over()
         COL_WIDTH = 11
         scoresheet = []
-        if game_over:
+        if self.game_over:
             scoresheet.append("FINAL SCORES:")
         else:
             scoresheet.append("CURRENT SCORES:")
@@ -179,19 +144,76 @@ class HeartsGame:
         scoresheet.append(" | ".join(f"{player:^{COL_WIDTH}}" for player in scores))
         for round_scores in zip(*scores.values()):
             scoresheet.append(" | ".join(f"{score:^{COL_WIDTH}}" for score in round_scores))
-        if game_over:
+        if self.game_over:
             scoresheet.append("-|-".join(["-" * 11] * 4))
             scoresheet.append(" | ".join(f"{sum(scores):^{COL_WIDTH}}" for scores in scores.values()))
         return "\n".join(scoresheet)
 
-    def winner_index(self, trick: Deck) -> int:
-        cards_played = enumerate(trick)
+    def _initialize_round(self):
+        self.deck = StandardDeck().shuffle()
+        for player in self.players:
+            player.collected_cards = Deck()
+            player_cards = self.deck.take(self.CARDS_PER_PLAYER)
+            player_cards.sort(key=lambda card: ("♣♦♠♥".index(card.suit.value), int(card)))
+            player.cards = player_cards
+
+        # the player who has two of clubs starts
+        for i, player in enumerate(self.players):
+            if player.has("Two of clubs"):
+                self._current_player_idx = i
+                break
+
+        self.trick_number = 1
+        self.hearts_opened = False
+        self.trick = Deck()
+
+    def _finish_trick(self):
+        if not self.hearts_opened and any(card.suit == Suits.HEARTS for card in self.trick):
+            self.hearts_opened = True
+
+        # "winner" collects cards and begins the next trick
+        cards_played = enumerate(self.trick)
         winner_index, max_card = next(cards_played)
         for (i, card) in cards_played:
             if card.suit == max_card.suit and int(card) > int(max_card):
                 max_card = card
                 winner_index = i
-        return winner_index
+        self._current_player_idx += winner_index
+        self._current_player_idx %= len(self.players)
+
+        winner = self.current_player
+        print(f"{winner.name} takes the trick")
+        winner.collected_cards.extend(self.trick)
+        self.trick_number += 1
+        self.trick = Deck()
+        if self.trick_number > self.CARDS_PER_PLAYER:
+            self._finish_round()
+
+    def _finish_round(self):
+        print("\nRound over! Results:")
+        shot_the_moon = None
+        # check for shoot the moon before distributing points regularly
+        for player in self.players:
+            if HeartsGame.score_deck(player.collected_cards) == 26:
+                shot_the_moon = player
+                break
+
+        if shot_the_moon is not None:
+            print(f"Player {shot_the_moon.name} shoots the moon!")
+            print("All other players get 26 added to their score.")
+            for player in self.players:
+                player.give_points(0 if shot_the_moon is player else 26)
+        else:
+            for player in self.players:
+                num_cards = len(player.collected_cards)
+                score = HeartsGame.score_deck(player.collected_cards)
+                print(f"Player {player.name} collected {num_cards} cards and scored {score}")
+                player.give_points(score)
+
+        if any(player.total_points >= self.point_limit for player in self.players):
+            self.game_over = True
+        else:
+            self._initialize_round()
 
 
 if __name__ == "__main__":
@@ -202,7 +224,12 @@ if __name__ == "__main__":
         RNGPlayer("Cleo"),
         RNGPlayer("Dimitri")
     ]
-    hearts_game = HeartsGame(players)
-    hearts_game.play()
+
+    game = HeartsGame(players)
+    for current_player, trick in game:
+        legal_moves = game.legal_moves(current_player.cards)
+        chosen_card = current_player.choose_action(trick, legal_moves)
+        game.play_card(chosen_card)
+
     print()
-    print(hearts_game.scoresheet())
+    print(game.scoresheet())
