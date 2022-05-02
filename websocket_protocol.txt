@@ -1,0 +1,26 @@
+Types of messages that can be sent over the websockets:
+([X] marks the ones that are implemented already)
+
+
+server -> client
+================
+[X] YOUR_CARDS
+[X] GAME_STATE
+[X] USERS
+[X] INFO
+[X] CHAT
+[X] HOST
+[ ] WHISPER
+
+
+client -> server
+================
+[X] PLAY
+[X] CHAT
+[ ] WHISPER
+
+
+client (host) -> server
+=======================
+[X] START
+[ ] KICK

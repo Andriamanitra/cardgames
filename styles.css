@@ -1,0 +1,61 @@
+.hidden {
+    display:  none;
+}
+.hearts::after {content: "♥"; color: red;}
+.spades::after {content: "♠"}
+.diamonds::after {content: "♦"; color: red}
+.clubs::after {content: "♣"}
+.card {
+    font-size: 20px;
+    display: inline-block;
+    padding: 2px;
+    background-color: white;
+    margin-right: -28px;
+    width: 50px;
+    height: 80px;
+    border: 1px solid black;
+    border-radius: 8px;
+}
+.card:hover {
+    outline: 2px solid black;
+}
+
+#trick, #trickresult {
+    min-height: 120px;
+}
+
+#cards, #trick, #trickresult{
+    padding: 1em;
+}
+.player-col > .user {
+    text-decoration: underline;
+}
+.player-col {
+    display: inline-block;
+    text-align: center;
+    min-width: 10ch;
+    padding: 5px;
+}
+.chat {
+    position: fixed;
+    top: 20px;
+    left: 800px;
+    height: 24em;
+    width: 60ch;
+    padding: 15px;
+    border: 3px inset rgb(142,207,205);
+}
+
+#info {
+    overflow-y: scroll;
+    height: calc(100% - 35px);
+    outline: 1px solid rgb(184,184,184);
+    padding: 5px;
+}
+.chat-input-container {
+    display: flex;
+    padding: 10px;
+}
+#chat-input {
+    flex-grow: 1;
+}

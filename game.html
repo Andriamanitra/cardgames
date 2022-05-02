@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" type="text/css" href="styles.css">
+	<title>Hearts</title>
+</head>
+<body>
+<div>
+	Status:
+	<span id="status">Disconnected</span>
+</div>
+<div id="trick"></div>
+<div id="trickresult" hidden></div>
+<div id="cards"></div>
+<div class="chat container">
+	<div id="info"></div>
+	<form id="chat-form">
+		<div class="chat-input-container">
+			<input id="chat-input" type="text">
+			<button type="submit">Send</button>
+		</div>
+	</form>
+</div>
+<button id="startbutton" onclick="startgame()" disabled>start</button>
+<div id="players"></div>
+<h2>Users</h2>
+<div id="users"></div>
+
+<script src="framework.js"></script>
+<script>
+div = elemGenFunc("div")
+span = elemGenFunc("span")
+p = elemGenFunc("p")
+a = elemGenFunc("a")
+h1 = elemGenFunc("h1")
+h2 = elemGenFunc("h2")
+h3 = elemGenFunc("h3")
+h4 = elemGenFunc("h4")
+h5 = elemGenFunc("h5")
+li = elemGenFunc("li")
+ul = elemGenFunc("ul")
+ol = elemGenFunc("ol")
+button = elemGenFunc("button")
+var ws = {};
+var trickResultTimeout = 1300;
+const WS_SERVER_ADDRESS = "ws://127.0.0.1:8000/game";
+
+window.addEventListener("load", joinRoom);
+
+document.querySelector("#chat-form").addEventListener("submit", function (ev) {
+	ev.preventDefault();
+	let chatInput = document.querySelector("#chat-input");
+	let msg = chatInput.value;
+	if (msg.length < 1) return;
+	chatInput.value = "";
+	ws.send(Message("CHAT", { message: msg }));
+})
+
+function joinRoom() {
+	if (ws.readyState === WebSocket.OPEN) {
+		console.error("already connected");
+		return;
+	}
+	ws = new WebSocket(WS_SERVER_ADDRESS + document.location.search)
+	ws.addEventListener("open", ev => {
+		document.querySelector("#status").innerText = `Connected to game room`;
+	});
+	ws.addEventListener("close", ev => {
+		document.querySelector("#status").innerText = "Disconnected";
+		document.querySelector("#startbutton").classList.add("hidden");
+	});
+	ws.addEventListener("message", ev => {
+		let obj = JSON.parse(ev.data);
+		console.info(obj);
+		if (obj.msg_type === "YOUR_CARDS") {
+			let cardsContainer = document.querySelector("#cards");
+			cardsContainer.innerHTML = "";
+			obj.cards.forEach((card_obj, i) => {
+				let cardEl = Card(card_obj);
+				cardEl.addEventListener("click", ev => {
+					ws.send(Message('PLAY', {card_index: i}))
+				});
+				cardsContainer.appendChild(cardEl);
+			})
+		} else if (obj.msg_type === "GAME_STATE") {
+			let statusText;
+			if (obj.status === "GAME_IN_PROGRESS") {
+				document.querySelector("#startbutton").classList.add("hidden");
+				statusText = `${obj.playing} is currently playing`;
+				updateTrick(document.querySelector("#trick"), obj.trick);
+			} else if (obj.status === "GAME_OVER") {
+				statusText = "Game over!"
+			} else if (obj.status === "WAITING_FOR_HOST") {
+				statusText = "Waiting for host to start the game...";
+			}
+			document.querySelector("#status").innerText = statusText;
+		} else if (obj.msg_type === "TRICK_FINISH") {
+			println(`${obj.winner} takes the trick!`);
+			let trickResultEl = document.querySelector("#trickresult");
+			let trickEl = document.querySelector("#trick");
+			updateTrick(trickResultEl, obj.trick);
+			trickEl.hidden = true;
+			trickResultEl.hidden = false;
+			setTimeout(() => {
+				trickResultEl.hidden = true;
+				trickEl.hidden = false;
+			}, trickResultTimeout);
+		} else if (obj.msg_type === "USERS") {
+			let usersEl = document.querySelector("#users");
+			usersEl.innerText = obj.users.map(username => {
+				if (username === obj.host) {
+					return `${username} (host)`
+				} else {
+					return username;
+				}
+			}).join(", ");
+		} else if (obj.msg_type === "INFO") {
+			println(obj.text);
+		} else if (obj.msg_type === "SCORES") {
+			let playersEl = document.querySelector("#players");
+			playersEl.innerHTML = "";
+			println("Round over!");
+			for (let playername in obj.scores) {
+				let playerEl = div({className: "player-col"})``;
+				let totalScore = obj.scores[playername].reduce((a,b) => a+b, 0);
+				let nameEl = div({className: "user"})`${playername}`;
+				let scoreEl = span({className: "score"})`${totalScore}`;
+				playerEl.appendChild(nameEl);
+				playerEl.appendChild(scoreEl);
+				playersEl.appendChild(playerEl);
+			};
+		} else if (obj.msg_type === "CHAT") {
+			println(`<${obj.sender}> ${obj.message}`, "chatlog");
+		} else if (obj.msg_type === "HOST") {
+			document.querySelector("#startbutton").disabled = false;
+		}
+	});
+}
+
+function Card(obj) {
+	let cardElement = document.createElement("div");
+	cardElement.classList.add("card");
+	cardElement.classList.add(obj.suit.toLowerCase());
+	cardElement.innerText = obj.value;
+	cardElement.title = obj.name;
+	return cardElement;
+}
+
+function Message(msg_type, content = {}) {
+	content.msg_type = msg_type;
+	return JSON.stringify(content);
+}
+
+function updateTrick(cardsContainer, cards) {
+	cardsContainer.innerHTML = "";
+	cards.forEach((card_obj, i) => {
+		let cardEl = Card(card_obj);
+		cardsContainer.appendChild(cardEl);
+	});
+}
+
+function println(text, cls="gamelog") {
+	const date = new Date();
+	let timestamp = ("00" + date.getHours()).slice(-2);
+	timestamp += ":" + ("00" + date.getMinutes()).slice(-2);
+	timestamp += ":" + ("00" + date.getSeconds()).slice(-2);
+	let elem = div({className: cls})`[${timestamp}] ${text}`
+	document.querySelector("#info").appendChild(elem);
+	elem.scrollIntoView();
+}
+
+function startgame() {
+	ws.send(Message("START"))
+}
+</script>
+</body>
+</html>
