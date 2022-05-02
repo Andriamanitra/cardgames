@@ -27,6 +27,13 @@ class Card():
     def __int__(self):
         return StandardDeck.CARD_NUMERIC_VALUES[self.value]
 
+    def to_object(self):
+        return {
+            "suit": self.suit.name,
+            "value": self.value,
+            "name": self.long_name
+        }
+
     @property
     def long_name(self):
         """Returns the name of the card in human-readable form."""
