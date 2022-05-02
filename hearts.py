@@ -5,6 +5,9 @@ from deck import Card
 from deck import Deck
 from deck import StandardDeck
 from deck import Suits
+from utils import NotOk
+from utils import Ok
+from utils import Result
 
 
 CARD_VALUES = {card_val: value for value, card_val in enumerate(StandardDeck.CARD_VALUES)}
@@ -26,11 +29,22 @@ class Player:
     def has(self, card_name: str) -> bool:
         return any(card.long_name == card_name for card in self.cards)
 
+    def has_suit(self, suit: Suits):
+        return any(card.suit == suit for card in self.cards)
+
     def give_points(self, points: int):
         self.points.append(points)
 
     def choose_action(self, trick: Deck, legal_moves: list[Card]) -> Card:
         raise NotImplementedError("choose_action method not implemented for Player class")
+
+    def reset(self):
+        """
+        This method is called every time a new game starts.
+        Can be used to prepare a player object for a fresh round.
+        """
+        self.collected_cards = Deck()
+        self.points = []
 
     @property
     def total_points(self) -> int:
@@ -45,19 +59,10 @@ class HumanPlayerCLI(Player):
             try:
                 i = int(to_play)
                 chosen_card = self.cards[i]
+                break
             except (ValueError, IndexError):
                 print("Invalid choice, try again")
-                continue
-            print(f"You picked {chosen_card}")
-            if chosen_card not in legal_moves:
-                if len(legal_moves) == 1:
-                    print(f"Illegal move. You must play {legal_moves[0]}.")
-                elif len(trick) == 0:
-                    print("Hearts have not been opened yet! Try again.")
-                else:
-                    print("You must follow suit. Try again.")
-                continue
-            break
+        print(f"You picked {chosen_card}")
         return chosen_card
 
 
@@ -73,15 +78,22 @@ class HeartsGame:
         if len(players) != 4:
             raise ValueError("only 4 player games are supported right now")
         self.CARDS_PER_PLAYER = 13
+        self.MAX_POINTS_PER_ROUND = 26
         self.players = players
         self._current_player_idx = 0
         self.game_over = False
         self.point_limit = point_limit
         self.hearts_opened = False
         self.deck = StandardDeck()
+        self.trick = Deck()
+        self.trick_number = 1
+        self.trick_finished = False
+        self.last_trick = None
+        self.last_trick_winner = None
+        self.last_starter_idx = 0
 
-    @classmethod
-    def score_deck(cls, deck: Deck) -> int:
+    @staticmethod
+    def score_deck(deck: Deck) -> int:
         score = 0
         for card in deck:
             if card.suit == Suits.HEARTS:
@@ -95,31 +107,55 @@ class HeartsGame:
         return self.players[self._current_player_idx]
 
     def __iter__(self) -> Iterator[tuple[Player, Deck]]:
-        self._initialize_round()
         while not self.game_over:
             yield self.current_player, self.trick
 
+    def start(self):
+        """
+        Sets up a fresh game. Must be called before playing cards with `play_card()`.
+        """
+        for player in self.players:
+            player.reset()
+        self._initialize_round()
+        return self
+
     def legal_moves(self, cards: Deck) -> list[Card]:
-        if len(cards) == self.CARDS_PER_PLAYER and len(self.trick) == 0:
-            # first move, forced to play 2 of clubs
-            return [card for card in cards if card.long_name == "Two of clubs"]
+        """
+        Returns a list of cards in the given deck that could be legally played
+        in the current state of the game.
+        """
+        return [card for card in cards if self.check_move(card)]
 
+    def check_move(self, card: Card) -> Result:
+        """
+        Returns a truthy Result if the card can be legally played in the
+        current state of the game.
+        Otherwise returns a falsey Result with a reason.
+        """
+        player = self.current_player
+        if card not in player.cards:
+            return NotOk("The current player does not own that card!")
         if len(self.trick) == 0:
-            # first card in a trick, can play anything except
-            # hearts if they are not yet opened
-            playable = [card for card in cards if self.hearts_opened or card.suit != Suits.HEARTS]
+            if self.trick_number == 1 and card.long_name != "Two of clubs":
+                return NotOk("A round must start with the two of clubs!")
+            if not self.hearts_opened and card.suit == Suits.HEARTS:
+                if any(card.suit != Suits.HEARTS for card in player.cards):
+                    return NotOk("Hearts can't be played before they are opened!")
         else:
-            # must follow suit
             required = self.trick[0].suit
-            playable = [card for card in cards if card.suit == required]
+            if card.suit != required and player.has_suit(required):
+                return NotOk("The play must follow suit!")
+        return Ok()
 
-        # if it's impossible to follow suit (or not play hearts),
-        # then a player is free to play any card
-        return playable if playable else list(cards)
-
-    def play_card(self, card: Card):
-        if card not in self.legal_moves(self.current_player.cards):
-            raise ValueError(f"Illegal move ({card})!")
+    def play_card(self, card: Card) -> Result:
+        """
+        Advances game state if the played card was a valid move.
+        Returns true if the play finished a trick.
+        """
+        self.trick_finished = False
+        check_result = self.check_move(card)
+        if not check_result.is_ok:
+            return check_result
 
         self.current_player.cards.remove(card)
         self.trick.append(card)
@@ -128,6 +164,7 @@ class HeartsGame:
 
         if len(self.trick) == len(self.players):
             self._finish_trick()
+        return Ok()
 
     def player_scores(self) -> dict[str, list[int]]:
         return {player.name: player.points for player in self.players}
@@ -168,6 +205,7 @@ class HeartsGame:
         self.trick = Deck()
 
     def _finish_trick(self):
+        self.trick_finished = True
         if not self.hearts_opened and any(card.suit == Suits.HEARTS for card in self.trick):
             self.hearts_opened = True
 
@@ -178,8 +216,11 @@ class HeartsGame:
             if card.suit == max_card.suit and int(card) > int(max_card):
                 max_card = card
                 winner_index = i
-        self._current_player_idx += winner_index
-        self._current_player_idx %= len(self.players)
+        self.last_trick = self.trick
+        self.last_starter_idx = self._current_player_idx
+        winning_player_index = (self.last_starter_idx + winner_index) % len(self.players)
+        self.last_trick_winner = self.players[winning_player_index]
+        self._current_player_idx = winning_player_index
 
         winner = self.current_player
         print(f"{winner.name} takes the trick")
@@ -194,19 +235,19 @@ class HeartsGame:
         shot_the_moon = None
         # check for shoot the moon before distributing points regularly
         for player in self.players:
-            if HeartsGame.score_deck(player.collected_cards) == 26:
+            if self.score_deck(player.collected_cards) == self.MAX_POINTS_PER_ROUND:
                 shot_the_moon = player
                 break
 
         if shot_the_moon is not None:
             print(f"Player {shot_the_moon.name} shoots the moon!")
-            print("All other players get 26 added to their score.")
+            print(f"All other players get {self.MAX_POINTS_PER_ROUND} added to their score.")
             for player in self.players:
-                player.give_points(0 if shot_the_moon is player else 26)
+                player.give_points(0 if shot_the_moon is player else self.MAX_POINTS_PER_ROUND)
         else:
             for player in self.players:
                 num_cards = len(player.collected_cards)
-                score = HeartsGame.score_deck(player.collected_cards)
+                score = self.score_deck(player.collected_cards)
                 print(f"Player {player.name} collected {num_cards} cards and scored {score}")
                 player.give_points(score)
 
@@ -225,11 +266,13 @@ if __name__ == "__main__":
         RNGPlayer("Dimitri")
     ]
 
-    game = HeartsGame(players)
+    game = HeartsGame(players).start()
     for current_player, trick in game:
         legal_moves = game.legal_moves(current_player.cards)
         chosen_card = current_player.choose_action(trick, legal_moves)
-        game.play_card(chosen_card)
+        play_result = game.play_card(chosen_card)
+        if not play_result.is_ok:
+            print(play_result.reason, "Try again.")
 
     print()
     print(game.scoresheet())
