@@ -3,13 +3,13 @@ import json
 import logging
 
 from sanic import Sanic
-from utils import NotOk
-from utils import Ok
-from utils import Result
 
 from hearts import HeartsGame
 from hearts import Player
 from hearts import RNGPlayer
+from utils import NotOk
+from utils import Ok
+from utils import Result
 
 logging.basicConfig(
     format="[%(levelname)s] [%(asctime)s] %(message)s",
