@@ -13,7 +13,7 @@ repos:
     -   id: name-tests-test
     -   id: trailing-whitespace
 -   repo: https://github.com/PyCQA/flake8
-    rev: 4.0.1
+    rev: 5.0.2
     hooks:
     -   id: flake8
 -   repo: https://github.com/pre-commit/mirrors-autopep8
