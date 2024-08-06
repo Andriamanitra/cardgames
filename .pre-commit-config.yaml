@@ -13,7 +13,7 @@ repos:
     -   id: name-tests-test
     -   id: trailing-whitespace
 -   repo: https://github.com/PyCQA/flake8
-    rev: 7.1.0
+    rev: 7.1.1
     hooks:
     -   id: flake8
 -   repo: https://github.com/hhatto/autopep8
@@ -26,7 +26,7 @@ repos:
     -   id: reorder-python-imports
         args: [--py39-plus]
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.0
+    rev: v1.11.1
     hooks:
     -   id: mypy
         # TODO: https://mypy.readthedocs.io/en/stable/running_mypy.html#cannot-find-implementation-or-library-stub
