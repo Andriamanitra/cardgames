@@ -21,12 +21,12 @@ repos:
     hooks:
     -   id: autopep8
 -   repo: https://github.com/asottile/reorder-python-imports
-    rev: v3.15.0
+    rev: v3.17.0
     hooks:
     -   id: reorder-python-imports
         args: [--py39-plus]
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.1
+    rev: v2.3.1
     hooks:
     -   id: mypy
         # TODO: https://mypy.readthedocs.io/en/stable/running_mypy.html#cannot-find-implementation-or-library-stub
